@@ -1,0 +1,1 @@
+# FIRKA - nincs külső függőség (csak Python stdlib)

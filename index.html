@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="hu">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FIRKA - rajzolós szójáték</title>
+<link rel="icon" href="data:,">
+<style>
+ *{box-sizing:border-box;margin:0;padding:0}
+ body{background:#1a2035;color:#e8ecf5;font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh}
+ h1.logo{font-size:44px;letter-spacing:6px;text-align:center;margin:24px 0 4px;color:#ffd93d;text-shadow:2px 2px 0 #b3541e}
+ .sub{text-align:center;color:#8a93b2;margin-bottom:20px}
+ #menu{max-width:420px;margin:0 auto;background:#232c47;border-radius:16px;padding:28px;box-shadow:0 10px 40px rgba(0,0,0,.4)}
+ #menu label{display:block;font-size:13px;color:#8a93b2;margin:14px 0 4px}
+ #menu input,#menu select{width:100%;padding:11px;border-radius:8px;border:2px solid #3a4569;background:#1a2035;color:#e8ecf5;font-size:16px}
+ .btn{display:block;width:100%;padding:12px;margin-top:14px;border:0;border-radius:8px;font-size:16px;font-weight:700;cursor:pointer;color:#1a2035;background:#ffd93d;transition:transform .1s,opacity .2s}
+ .btn:hover{opacity:.92}
+ .btn:active{transform:scale(.98)}
+ .btn2{background:#4fc3f7}
+ .btn-start{background:#6ee7a0;color:#102a1d;margin-top:16px;font-size:17px}
+ .row{display:flex;gap:10px}
+ .row>*{flex:1}
+ #err{color:#ff6b6b;text-align:center;margin-top:10px;font-size:14px;min-height:18px}
+ /* játék */
+ #game{display:none;max-width:1250px;margin:0 auto;padding:10px}
+ #topbar{display:flex;align-items:center;gap:14px;background:#232c47;border-radius:10px;padding:10px 16px;margin-bottom:8px;min-height:52px}
+ #roundinfo{font-size:14px;color:#8a93b2;white-space:nowrap}
+ #timerbar{flex:1;height:12px;background:#1a2035;border-radius:6px;overflow:hidden}
+ #timerfill{height:100%;width:100%;background:linear-gradient(90deg,#ff6b6b,#ffd93d);transition:width .5s linear}
+ #wordbox{font-size:24px;letter-spacing:4px;font-weight:800;white-space:nowrap;color:#ffd93d;font-family:monospace}
+ #wordbox.guessed{color:#6ee7a0}
+ #layout{display:grid;grid-template-columns:220px 1fr 290px;gap:8px}
+ .panel{background:#232c47;border-radius:10px;padding:10px;display:flex;flex-direction:column}
+ #players{flex:1}
+ #players .pl{display:flex;justify-content:space-between;align-items:center;padding:6px 8px;border-radius:6px;font-size:14px;margin-bottom:2px}
+ #players .pl.me{background:#2c3760}
+ #players .score{color:#ffd93d;font-weight:700}
+ .pencil{margin-left:4px}
+ #canvaswrap{position:relative}
+ canvas{width:100%;display:block;background:#fff;border-radius:10px;touch-action:none;cursor:crosshair}
+ #toolbar{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;background:#232c47;padding:10px;border-radius:10px;align-items:center}
+ .swatch{width:26px;height:26px;border-radius:6px;border:2px solid #3a4569;cursor:pointer}
+ .swatch.sel{border-color:#ffd93d;transform:scale(1.15)}
+ .szbtn{background:#1a2035;color:#e8ecf5;border:2px solid #3a4569;border-radius:6px;cursor:pointer;font-weight:700}
+ .szbtn.sel{border-color:#ffd93d}
+ .tbtn{background:#1a2035;color:#e8ecf5;border:2px solid #3a4569;border-radius:6px;padding:6px 10px;cursor:pointer;font-size:13px}
+ .tbtn:hover{border-color:#ffd93d}
+ #chatbox{display:flex;flex-direction:column;height:520px}
+ #chatlog{flex:1;overflow-y:auto;font-size:13.5px;line-height:1.5;padding:4px}
+ #chatlog .sys{color:#6ee7a0;font-style:italic}
+ #chatlog .name{color:#4fc3f7;font-weight:700}
+ #chatlog .good{color:#6ee7a0;font-weight:700}
+ #chatinput{margin-top:6px;padding:10px;border-radius:8px;border:2px solid #3a4569;background:#1a2035;color:#e8ecf5;width:100%}
+ /* overlay */
+ #overlay{display:none;position:fixed;inset:0;background:rgba(10,14,26,.85);z-index:10;align-items:center;justify-content:center}
+ #ocard{background:#232c47;border-radius:16px;padding:36px 44px;text-align:center;max-width:520px;box-shadow:0 15px 50px rgba(0,0,0,.6)}
+ #ocard h2{color:#ffd93d;margin-bottom:12px}
+ #ocard .word{font-size:28px;letter-spacing:2px;color:#6ee7a0;font-weight:800;margin:8px 0 16px}
+ .podium{font-size:20px;margin:6px 0}
+ .medal{font-size:26px}
+ @media(max-width:900px){
+  #layout{grid-template-columns:1fr}
+  #chatbox{height:300px}
+  #wordbox{font-size:18px}
+ }
+</style>
+</head>
+<body>
+<h1 class="logo">FIRKA</h1>
+<p class="sub">rajzolj, találd ki, nyerj &ndash; skribbl magyarul</p>
+
+<div id="menu">
+  <label>Becenév</label>
+  <input id="mname" maxlength="16" placeholder="pl. Bingus" autocomplete="off">
+  <label>Szoba PIN (ha meghívtak)</label>
+  <div class="row">
+    <input id="mpin" maxlength="4" inputmode="numeric" placeholder="PIN" autocomplete="off">
+    <button class="btn btn2" style="margin:0" onclick="joinRoom()">Csatlakozás</button>
+  </div>
+  <label>Új szoba &ndash; körök száma</label>
+  <select id="mrounds">
+    <option value="2">2 kör</option><option value="3" selected>3 kör</option>
+    <option value="4">4 kör</option><option value="5">5 kör</option>
+  </select>
+  <button class="btn" onclick="createRoom()">Szoba létrehozása</button>
+  <div id="err"></div>
+</div>
+
+<div id="game">
+  <div id="topbar">
+    <span id="roundinfo">várakozás...</span>
+    <div id="timerbar"><div id="timerfill"></div></div>
+    <span id="wordbox"></span>
+  </div>
+  <div id="layout">
+    <div class="panel">
+      <div id="players"></div>
+      <button id="startbtn" class="btn btn-start" style="display:none" onclick="startGame()">Játék indítása</button>
+    </div>
+    <div>
+      <div id="canvaswrap"><canvas id="cv" width="800" height="600"></canvas></div>
+      <div id="toolbar"></div>
+    </div>
+    <div class="panel" id="chatbox">
+      <div id="chatlog"></div>
+      <input id="chatinput" maxlength="120" placeholder="Tippeld a szót..." autocomplete="off">
+    </div>
+  </div>
+</div>
+
+<div id="overlay"><div id="ocard"></div></div>
+
+<script>
+"use strict";
+const PALETTE=["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#ffd93d","#fff200","#22b14c","#00a2e8","#3f48cc","#a349a4","#ffaec9","#efe4b0","#b5e61d","#99d9ea","#ffffff"];
+const SIZES=[4,8,16,28];
+let ws=null, me=0, state={state:"lobby",players:[],round:1,rounds:3,time:0,hint:"",drawer_pid:null,your_word:""};
+let color="#000000",size=8,drawing=false,last=null,myTurn=false,myWord="";
+
+const $=id=>document.getElementById(id);
+const cv=$("cv"),ctx=cv.getContext("2d");
+
+function connect(onopen){
+  const proto=location.protocol==="https:"?"wss":"ws";
+  ws=new WebSocket(proto+"://"+location.host+"/ws");
+  ws.onopen=onopen;
+  ws.onmessage=e=>{ const m=JSON.parse(e.data); route(m); };
+  ws.onclose=()=>{ if($("game").style.display==="block"){ backToMenu("Megszakadt a kapcsolat!"); } ws=null; };
+}
+function send(o){ if(ws&&ws.readyState===1) ws.send(JSON.stringify(o)); }
+
+function createRoom(){
+  const name=$("mname").value.trim(); if(!name){ $("err").textContent="Adj meg egy nevet!"; return; }
+  connect(()=>send({t:"create",name:name,rounds:parseInt($("mrounds").value,10)}));
+}
+function joinRoom(){
+  const name=$("mname").value.trim(), pin=$("mpin").value.trim();
+  if(!name){ $("err").textContent="Adj meg egy nevet!"; return; }
+  if(!/^\d{4}$/.test(pin)){ $("err").textContent="A PIN 4 számjegy!"; return; }
+  connect(()=>send({t:"join",pin:pin,name:name}));
+}
+function startGame(){
+  send({t:"start"});
+}
+function backToMenu(msg){
+  $("game").style.display="none"; $("menu").style.display="block";
+  $("overlay").style.display="none";
+  if(msg) $("err").textContent=msg;
+  if(ws){ try{ws.onclose=null;ws.close();}catch(e){} ws=null; }
+}
+
+function route(m){
+  switch(m.t){
+    case "welcome":
+      me=m.you; $("menu").style.display="none"; $("game").style.display="block";
+      $("chatlog").innerHTML=""; sysMsg("Szoba PIN: "+m.pin+" – ezzel csatlakozhatnak a többiek!");
+      ctx.clearRect(0,0,800,600); break;
+    case "error": backToMenu(m.msg); break;
+    case "replay": for(const op of m.ops){ if(op) drawSeg(op.s,op.c,op.w); else clearCv(); } break;
+    case "state": applyState(m); break;
+    case "tick":
+      state.time=m.time;
+      const maxT = state.state==="choosing" ? 15 : 80;
+      $("timerfill").style.width=Math.max(0,m.time)*100/maxT+"%";
+      if(m.hint!==undefined){ state.hint=m.hint; renderWord(); }
+      break;
+    case "choose": showChoose(m.words); break;
+    case "draw": drawSeg(m.s,m.c,m.w); break;
+    case "clear": clearCv(); break;
+    case "chat": chatMsg(m.name,m.msg,"chat"); break;
+    case "sys": sysMsg(m.msg); break;
+    case "guessed_ok":
+      chatLog("<span class='good'>"+esc(m.name)+" kitalálta! (+"+m.pts+")</span>");
+      state.players=m.players; renderPlayers(); break;
+    case "you_guessed": myWord=m.word; $("wordbox").classList.add("guessed"); renderWord(); break;
+    case "turn_end": onTurnEnd(m); break;
+    case "game_over": onGameOver(m); break;
+  }
+}
+
+function applyState(m){
+  state=m;
+  myTurn=(m.drawer_pid===me);
+  const meP=m.players.find(p=>p.id===me);
+
+  // Ha a szerver elküldi a rajzolónak a kiválasztott szót, eltároljuk
+  if(myTurn && m.your_word){
+    myWord = m.your_word;
+  } else if(!meP || !meP.guessed){
+    myWord = "";
+    $("wordbox").classList.remove("guessed");
+  }
+
+  // Indítás gomb megjelenítése csak a házigazdának a lobbyban
+  const isHost = meP && meP.host;
+  $("startbtn").style.display = (isHost && m.state === "lobby") ? "block" : "none";
+
+  // Kihagyás gomb csak a rajzolónak rajzolás közben
+  const skipBtn = $("skipbtn");
+  if(skipBtn) skipBtn.style.display = (myTurn && m.state === "drawing") ? "inline-block" : "none";
+
+  $("roundinfo").textContent = m.state==="lobby" ? ("szoba – "+m.players.length+" játékos, a gazda indít")
+    : (m.state==="over" ? "vége!" : ("kör "+m.round+"/"+m.rounds));
+  renderPlayers(); renderWord();
+
+  const maxT = m.state==="choosing" ? 15 : 80;
+  if(m.state==="drawing"||m.state==="between"||m.state==="choosing"){
+    $("timerfill").style.width=Math.max(0,m.time)*100/maxT+"%";
+  }
+
+  // Körök közti / játék végi felugró ablak bezárása, ha új kör indul
+  if(m.state==="drawing" || m.state==="lobby" || (m.state==="choosing" && !myTurn)){
+    $("overlay").style.display="none";
+  }
+}
+
+function renderWord(){
+  if(state.state==="drawing"){
+    if(myTurn && myWord){
+      $("wordbox").textContent = myWord;
+    } else if(myWord){
+      $("wordbox").textContent = myWord;
+    } else {
+      // Kitalálók látják az alsó vonásokat (pl. _ _ _ _)
+      $("wordbox").textContent = state.hint || "";
+    }
+  } else if(state.state==="choosing"){
+    const drawer = state.players.find(p=>p.id===state.drawer_pid);
+    $("wordbox").textContent = myTurn ? "válassz szót!" : ((drawer ? drawer.name : "Valaki") + " szót választ...");
+  } else {
+    $("wordbox").textContent = "";
+  }
+}
+
+function renderPlayers(){
+  const ps=[...state.players].sort((a,b)=>b.score-a.score);
+  $("players").innerHTML=ps.map(p=>{
+    const pencil=(p.id===state.drawer_pid&&(state.state==="drawing"||state.state==="choosing"))?"<span class='pencil' title='rajzol'>✏️</span>":"";
+    const ok=p.guessed?"✓":""; const h=p.host?"👑 ":"";
+    return "<div class='pl"+(p.id===me?" me":"")+"'><span>"+h+esc(p.name)+pencil+"</span><span>"+ok+" <span class='score'>"+p.score+"</span></span></div>";
+  }).join("");
+}
+
+function drawSeg(s,c,w){
+  ctx.strokeStyle=c; ctx.lineWidth=w; ctx.lineCap="round"; ctx.lineJoin="round";
+  const x1=s[0]*800,y1=s[1]*600,x2=s[2]*800,y2=s[3]*600;
+  ctx.beginPath();
+  if(Math.abs(x1-x2)<0.6&&Math.abs(y1-y2)<0.6){ ctx.fillStyle=c; ctx.arc(x1,y1,w/2,0,7); ctx.fill(); return; }
+  ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+}
+function clearCv(){ ctx.clearRect(0,0,800,600); }
+
+// eszközök
+function buildToolbar(){
+  let h=PALETTE.map(c=>"<div class='swatch"+(c===color?" sel":"")+"' style='background:"+c+"' data-c='"+c+"'></div>").join("");
+  h+=SIZES.map(s=>"<button class='szbtn"+(s===size?" sel":"")+"' data-s='"+s+"' style='width:"+(14+s)+"px;height:"+(14+s)+"px;border-radius:50%;padding:0'></button>").join("");
+  h+="<button class='tbtn' id='eraser'>Radír</button><button class='tbtn' id='clr'>Törlés</button><button class='tbtn' id='skipbtn' style='display:"+(myTurn&&state.state==="drawing"?"inline-block":"none")+"'>Kihagyás</button>";
+  $("toolbar").innerHTML=h;
+  document.querySelectorAll(".swatch").forEach(el=>el.onclick=()=>{color=el.dataset.c;buildToolbar();});
+  document.querySelectorAll(".szbtn").forEach(el=>el.onclick=()=>{size=+el.dataset.s;buildToolbar();});
+  $("eraser").onclick=()=>{color="#ffffff";size=28;buildToolbar();};
+  $("clr").onclick=()=>{ if(canDraw()){ clearCv(); send({t:"clear"}); } };
+  $("skipbtn").onclick=()=>{ if(myTurn&&state.state==="drawing") send({t:"skip"}); };
+}
+function canDraw(){ return (myTurn&&state.state==="drawing")||state.state==="lobby"||state.state==="over"; }
+
+cv.addEventListener("pointerdown",e=>{
+  if(!canDraw()) return;
+  cv.setPointerCapture(e.pointerId);
+  drawing=true; last=pt(e);
+  drawSeg([last.x,last.y,last.x,last.y],color,size);
+  send({t:"draw",s:[last.x,last.y,last.x,last.y],c:color,w:size});
+});
+cv.addEventListener("pointermove",e=>{
+  if(!drawing) return;
+  const p=pt(e);
+  drawSeg([last.x,last.y,p.x,p.y],color,size);
+  send({t:"draw",s:[last.x,last.y,p.x,p.y],c:color,w:size});
+  last=p;
+});
+addEventListener("pointerup",()=>{drawing=false;last=null;});
+function pt(e){ const r=cv.getBoundingClientRect(); return {x:(e.clientX-r.left)/r.width, y:(e.clientY-r.top)/r.height}; }
+
+// chat
+$("chatinput").addEventListener("keydown",e=>{
+  if(e.key!=="Enter") return;
+  const v=e.target.value.trim(); if(!v) return;
+  e.target.value="";
+  if(state.state==="drawing"&&!myTurn){
+    send({t:"guess",text:v});
+  } else {
+    send({t:"chat",text:v});
+  }
+});
+function esc(s){ return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+function chatLog(html){ const d=document.createElement("div"); d.innerHTML=html; $("chatlog").appendChild(d); $("chatlog").scrollTop=1e6; }
+function sysMsg(t){ chatLog("<span class='sys'>"+esc(t)+"</span>"); }
+function chatMsg(name,msg,kind){ chatLog("<span class='name'>"+esc(name)+":</span> "+esc(msg)); }
+
+// szóválasztás
+function showChoose(words){
+  const oc=$("ocard");
+  oc.innerHTML="<h2>Te rajzolsz!</h2><p>Válassz egy szót:</p><div style='display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:16px'>"+
+    words.map(w=>"<button class='btn' style='width:auto;padding:12px 20px;margin:0' data-w=\""+esc(w)+"\">"+esc(w)+"</button>").join("")+"</div>";
+  $("overlay").style.display="flex";
+  oc.querySelectorAll("button").forEach(b=>b.onclick=()=>{
+    $("overlay").style.display="none";
+    myWord = b.dataset.w;
+    send({t:"choose_word",word:b.dataset.w});
+  });
+}
+function onTurnEnd(m){
+  state.players=m.players; renderPlayers();
+  const oc=$("ocard");
+  let title=m.reason==="all"?"Mindenki kitalálta!":m.reason==="skip"?"Kihagyva":"Lejárt az idő!";
+  oc.innerHTML="<h2>"+title+"</h2><p>A szó pedig:</p><div class='word'>"+esc(m.word)+"</div><p>Következő kör hamarosan indul...</p>";
+  $("overlay").style.display="flex";
+  $("wordbox").classList.remove("guessed");
+  myWord="";
+}
+function onGameOver(m){
+  state.players=m.players; state.state="over"; renderPlayers();
+  const medals=["🥇","🥈","🥉"];
+  const rows=m.players.map((p,i)=>"<div class='podium'><span class='medal'>"+(medals[i]||"🎉")+"</span> "+esc(p.name)+" &ndash; <b>"+p.score+"</b></div>").join("");
+  const isHost=(m.players.find(p=>p.id===me)||{}).host;
+  const oc=$("ocard");
+  oc.innerHTML="<h2>🏆 Eredmények 🏆</h2>"+rows+(isHost?"<button class='btn' id='again'>Még egy kör!</button>":"");
+  $("overlay").style.display="flex";
+  const a=$("again"); if(a) a.onclick=()=>{ $("overlay").style.display="none"; send({t:"again"}); };
+}
+
+buildToolbar();
+</script>
+</body>
+</html>
